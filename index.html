@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#244b2a" />
+  <title>Graefbos Plantenkaart</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIINfQ3ynh4R2CjMZlC5QxQ5YQ7ZQX9A5cM="
+        crossorigin="" />
+  <style>
+    :root {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #203124;
+      background: #f4f1e8;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    header {
+      padding: 14px 16px;
+      background: #244b2a;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    header h1 { margin: 0; font-size: 20px; }
+    header small { opacity: .85; }
+    #map { height: calc(100vh - 66px); width: 100%; }
+    .toolbar {
+      position: fixed;
+      z-index: 1000;
+      left: 12px;
+      right: 12px;
+      bottom: calc(12px + env(safe-area-inset-bottom));
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      pointer-events: none;
+    }
+    button {
+      border: 0;
+      border-radius: 12px;
+      padding: 13px 14px;
+      font-weight: 700;
+      font-size: 15px;
+      box-shadow: 0 3px 12px rgba(0,0,0,.18);
+      cursor: pointer;
+    }
+    .toolbar button { pointer-events: auto; }
+    .primary { background: #244b2a; color: white; }
+    .secondary { background: white; color: #244b2a; }
+    dialog {
+      width: min(92vw, 540px);
+      border: 0;
+      border-radius: 16px;
+      padding: 0;
+      box-shadow: 0 12px 44px rgba(0,0,0,.28);
+    }
+    dialog::backdrop { background: rgba(0,0,0,.45); }
+    form { padding: 20px; }
+    form h2 { margin-top: 0; }
+    label { display: block; margin: 13px 0 5px; font-weight: 700; }
+    input, textarea, select {
+      width: 100%;
+      padding: 11px;
+      border: 1px solid #b9c4b9;
+      border-radius: 9px;
+      font: inherit;
+    }
+    textarea { min-height: 90px; resize: vertical; }
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 18px;
+    }
+    .hint {
+      font-size: 13px;
+      color: #526256;
+      background: #eef2eb;
+      border-radius: 9px;
+      padding: 9px 10px;
+      margin-top: 10px;
+    }
+    .plant-popup h3 { margin: 0 0 6px; }
+    .plant-popup p { margin: 4px 0; }
+    .delete {
+      margin-top: 8px;
+      padding: 7px 10px;
+      border-radius: 8px;
+      background: #8c2f2f;
+      color: white;
+      box-shadow: none;
+    }
+    .status {
+      position: fixed;
+      z-index: 1001;
+      top: 78px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: white;
+      border-radius: 999px;
+      padding: 8px 12px;
+      box-shadow: 0 3px 12px rgba(0,0,0,.18);
+      font-size: 13px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Graefbos Plantenkaart</h1>
+      <small>Eerste prototype</small>
+    </div>
+    <small id="count">0 planten</small>
+  </header>
+
+  <div id="map"></div>
+  <div id="status" class="status"></div>
+
+  <div class="toolbar">
+    <button id="locateBtn" class="secondary">📍 Mijn locatie</button>
+    <button id="addBtn" class="primary">＋ Plant toevoegen</button>
+  </div>
+
+  <dialog id="plantDialog">
+    <form id="plantForm">
+      <h2>Plant toevoegen</h2>
+      <div class="hint">
+        De marker kan na het opslaan over de kaart worden versleept om de positie nauwkeuriger te maken.
+      </div>
+
+      <label for="name">Naam *</label>
+      <input id="name" name="name" required placeholder="Bijv. appelboom Elstar" />
+
+      <label for="latinName">Latijnse naam</label>
+      <input id="latinName" name="latinName" placeholder="Bijv. Malus domestica" />
+
+      <label for="plantYear">Aanplantjaar</label>
+      <input id="plantYear" name="plantYear" type="number" min="1900" max="2100" placeholder="Bijv. 2022" />
+
+      <label for="nursery">Kweker</label>
+      <input id="nursery" name="nursery" placeholder="Naam kweker of leverancier" />
+
+      <label for="notes">Notities</label>
+      <textarea id="notes" name="notes" placeholder="Kenmerken, onzekerheden, onderhoud..."></textarea>
+
+      <label for="statusField">Identificatie</label>
+      <select id="statusField" name="status">
+        <option value="geïdentificeerd">Geïdentificeerd</option>
+        <option value="vermoedelijk">Vermoedelijk</option>
+        <option value="onbekend">Onbekend</option>
+      </select>
+
+      <div class="actions">
+        <button type="button" id="cancelBtn" class="secondary">Annuleren</button>
+        <button type="submit" class="primary">Opslaan</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+          crossorigin=""></script>
+  <script>
+    const defaultCenter = [51.15, 4.4]; // België; wordt vervangen zodra locatie bekend is
+    const map = L.map('map', { zoomControl: true }).setView(defaultCenter, 8);
+
+    const satellite = L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      {
+        maxZoom: 20,
+        attribution: 'Beeldmateriaal: Esri en bronpartners'
+      }
+    ).addTo(map);
+
+    const streets = L.tileLayer(
+      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      {
+        maxZoom: 20,
+        attribution: '&copy; OpenStreetMap-bijdragers'
+      }
+    );
+
+    L.control.layers(
+      { 'Satelliet': satellite, 'Stratenkaart': streets },
+      {},
+      { position: 'topright' }
+    ).addTo(map);
+
+    const storageKey = 'graefbos-plants-v1';
+    let plants = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    let pendingLatLng = null;
+    let locationMarker = null;
+
+    const dialog = document.getElementById('plantDialog');
+    const form = document.getElementById('plantForm');
+    const statusBox = document.getElementById('status');
+
+    function showStatus(message, ms = 2600) {
+      statusBox.textContent = message;
+      statusBox.style.display = 'block';
+      window.setTimeout(() => statusBox.style.display = 'none', ms);
+    }
+
+    function persist() {
+      localStorage.setItem(storageKey, JSON.stringify(plants));
+      updateCount();
+    }
+
+    function updateCount() {
+      document.getElementById('count').textContent =
+        `${plants.length} ${plants.length === 1 ? 'plant' : 'planten'}`;
+    }
+
+    function escapeHtml(value = '') {
+      return String(value).replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+      })[c]);
+    }
+
+    function popupHtml(plant) {
+      return `
+        <div class="plant-popup">
+          <h3>${escapeHtml(plant.name)}</h3>
+          ${plant.latinName ? `<p><em>${escapeHtml(plant.latinName)}</em></p>` : ''}
+          ${plant.plantYear ? `<p><strong>Aanplantjaar:</strong> ${escapeHtml(plant.plantYear)}</p>` : ''}
+          ${plant.nursery ? `<p><strong>Kweker:</strong> ${escapeHtml(plant.nursery)}</p>` : ''}
+          <p><strong>Status:</strong> ${escapeHtml(plant.status)}</p>
+          ${plant.notes ? `<p>${escapeHtml(plant.notes)}</p>` : ''}
+          <button class="delete" onclick="deletePlant('${plant.id}')">Verwijderen</button>
+        </div>
+      `;
+    }
+
+    function addPlantMarker(plant) {
+      const marker = L.marker([plant.lat, plant.lng], { draggable: true }).addTo(map);
+      marker.bindPopup(popupHtml(plant));
+      marker.on('dragend', event => {
+        const p = plants.find(x => x.id === plant.id);
+        const pos = event.target.getLatLng();
+        if (p) {
+          p.lat = pos.lat;
+          p.lng = pos.lng;
+          persist();
+          showStatus('Positie bijgewerkt');
+        }
+      });
+      plant._marker = marker;
+    }
+
+    function renderPlants() {
+      plants.forEach(addPlantMarker);
+      updateCount();
+    }
+
+    window.deletePlant = function(id) {
+      const plant = plants.find(x => x.id === id);
+      if (!plant) return;
+      if (!confirm(`"${plant.name}" verwijderen?`)) return;
+      map.removeLayer(plant._marker);
+      plants = plants.filter(x => x.id !== id);
+      persist();
+    };
+
+    function locateUser(openFormAfter = false) {
+      if (!navigator.geolocation) {
+        showStatus('Locatiebepaling wordt niet ondersteund.');
+        return;
+      }
+      showStatus('Locatie wordt bepaald...', 5000);
+      navigator.geolocation.getCurrentPosition(
+        position => {
+          const { latitude, longitude, accuracy } = position.coords;
+          const latlng = [latitude, longitude];
+          map.setView(latlng, 19);
+
+          if (locationMarker) map.removeLayer(locationMarker);
+          locationMarker = L.circle(latlng, {
+            radius: accuracy,
+            weight: 2,
+            fillOpacity: .12
+          }).addTo(map).bindPopup(`Geschatte nauwkeurigheid: ±${Math.round(accuracy)} m`);
+
+          pendingLatLng = L.latLng(latitude, longitude);
+          showStatus(`Locatie gevonden: ±${Math.round(accuracy)} m`);
+          if (openFormAfter) dialog.showModal();
+        },
+        error => {
+          console.error(error);
+          showStatus('Locatie niet beschikbaar. Tik op de kaart om een punt te kiezen.', 4200);
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      );
+    }
+
+    document.getElementById('locateBtn').addEventListener('click', () => locateUser(false));
+
+    document.getElementById('addBtn').addEventListener('click', () => {
+      locateUser(true);
+    });
+
+    map.on('click', event => {
+      pendingLatLng = event.latlng;
+      showStatus('Punt gekozen. Tik op “Plant toevoegen”.');
+    });
+
+    document.getElementById('cancelBtn').addEventListener('click', () => {
+      form.reset();
+      dialog.close();
+    });
+
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      if (!pendingLatLng) {
+        showStatus('Kies eerst een locatie op de kaart.');
+        return;
+      }
+
+      const data = new FormData(form);
+      const plant = {
+        id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+        name: data.get('name').trim(),
+        latinName: data.get('latinName').trim(),
+        plantYear: data.get('plantYear'),
+        nursery: data.get('nursery').trim(),
+        notes: data.get('notes').trim(),
+        status: data.get('status'),
+        lat: pendingLatLng.lat,
+        lng: pendingLatLng.lng,
+        createdAt: new Date().toISOString()
+      };
+
+      plants.push(plant);
+      addPlantMarker(plant);
+      persist();
+      form.reset();
+      dialog.close();
+      map.setView([plant.lat, plant.lng], Math.max(map.getZoom(), 19));
+      plant._marker.openPopup();
+      showStatus('Plant opgeslagen op dit toestel');
+    });
+
+    renderPlants();
+  </script>
+</body>
+</html>
