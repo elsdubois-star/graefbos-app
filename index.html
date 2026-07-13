@@ -1,911 +1,274 @@
 <!doctype html>
 <html lang="nl">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#2d5a32" />
-  <title>Graefbos Plantenkaart</title>
-
-  <!-- Leaflet: kaartbibliotheek. Geen integrity-attribuut, zodat CDN-problemen prototype 1 niet blokkeren. -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
-
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Graefbos Plantenkaart — lokale test</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
     :root {
-      --green: #2d5a32;
-      --green-dark: #17381f;
-      --cream: #f6f1e7;
-      --line: #d8ddcf;
-      --text: #1d2b1f;
-      --muted: #5d6b5f;
-      --danger: #9b2d2d;
-      --card: rgba(255,255,255,.96);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      color: var(--text);
-      background: var(--cream);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --green:#285a30; --light:#f5f1e8; --line:#d7dccf; --text:#1f2c21;
     }
-
     * { box-sizing: border-box; }
-
-    html, body {
-      height: 100%;
-      margin: 0;
-      overflow: hidden;
-    }
-
-    body {
-      display: grid;
-      grid-template-rows: auto 1fr;
-    }
-
+    body { margin:0; background:var(--light); color:var(--text); }
     header {
-      background: var(--green);
-      color: white;
-      padding: 10px 12px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-      min-height: 58px;
-      box-shadow: 0 2px 10px rgba(0,0,0,.18);
-      z-index: 10;
+      padding:12px 14px; background:var(--green); color:white;
+      display:flex; justify-content:space-between; align-items:center; gap:10px;
     }
-
-    header h1 {
-      margin: 0;
-      font-size: 18px;
-      line-height: 1.1;
+    h1 { font-size:18px; margin:0; }
+    .sub { font-size:12px; opacity:.85; }
+    #map { height:42vh; min-height:280px; width:100%; background:#dfe8d9; }
+    main { padding:12px; max-width:760px; margin:0 auto 80px; }
+    .card {
+      background:white; border:1px solid var(--line); border-radius:16px;
+      padding:14px; box-shadow:0 2px 10px rgba(0,0,0,.08); margin-bottom:12px;
     }
-
-    header .sub {
-      font-size: 12px;
-      opacity: .86;
-      margin-top: 2px;
-    }
-
-    header .count {
-      font-weight: 700;
-      font-size: 13px;
-      background: rgba(255,255,255,.16);
-      padding: 7px 9px;
-      border-radius: 999px;
-      white-space: nowrap;
-    }
-
-    #map {
-      width: 100%;
-      height: 100%;
-      z-index: 1;
-      background: #dbe6d5;
-    }
-
-    .top-panel {
-      position: fixed;
-      z-index: 500;
-      top: 72px;
-      left: 10px;
-      right: 10px;
-      display: grid;
-      gap: 8px;
-      pointer-events: none;
-    }
-
-    .search-row {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 8px;
-      pointer-events: auto;
-    }
-
-    .search-row input {
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 12px 13px;
-      font-size: 16px;
-      box-shadow: 0 4px 14px rgba(0,0,0,.16);
-      background: var(--card);
-      min-width: 0;
-    }
-
-    .toolbar {
-      position: fixed;
-      z-index: 500;
-      left: 10px;
-      right: 10px;
-      bottom: calc(10px + env(safe-area-inset-bottom));
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      pointer-events: none;
-    }
-
-    button {
-      appearance: none;
-      border: 0;
-      border-radius: 14px;
-      padding: 12px 13px;
-      font-size: 15px;
-      font-weight: 750;
-      cursor: pointer;
-      box-shadow: 0 4px 14px rgba(0,0,0,.18);
-      touch-action: manipulation;
-    }
-
-    .toolbar button, .search-row button { pointer-events: auto; }
-
-    .primary {
-      background: var(--green);
-      color: white;
-    }
-
-    .secondary {
-      background: var(--card);
-      color: var(--green-dark);
-      border: 1px solid var(--line);
-    }
-
-    .small-btn {
-      padding: 11px 12px;
-      white-space: nowrap;
-    }
-
-    .status {
-      display: none;
-      pointer-events: auto;
-      justify-self: center;
-      max-width: min(620px, 92vw);
-      background: var(--card);
-      color: var(--green-dark);
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      padding: 8px 12px;
-      font-size: 13px;
-      box-shadow: 0 4px 14px rgba(0,0,0,.14);
-      text-align: center;
-    }
-
-    .panel {
-      position: fixed;
-      z-index: 900;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      max-height: min(88vh, 720px);
-      background: white;
-      border-radius: 22px 22px 0 0;
-      box-shadow: 0 -8px 34px rgba(0,0,0,.26);
-      transform: translateY(105%);
-      transition: transform .22s ease;
-      display: flex;
-      flex-direction: column;
-      padding-bottom: env(safe-area-inset-bottom);
-    }
-
-    .panel.open {
-      transform: translateY(0);
-    }
-
-    .panel-header {
-      padding: 14px 16px 8px;
-      border-bottom: 1px solid var(--line);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-      flex-shrink: 0;
-    }
-
-    .panel-header h2 {
-      margin: 0;
-      font-size: 19px;
-    }
-
-    .panel-content {
-      overflow: auto;
-      padding: 10px 16px 16px;
-    }
-
-    .close-btn {
-      box-shadow: none;
-      background: #eef2ea;
-      color: var(--green-dark);
-      border-radius: 999px;
-      padding: 8px 11px;
-    }
-
-    label {
-      display: block;
-      margin: 12px 0 5px;
-      font-weight: 750;
-      font-size: 14px;
-    }
-
+    label { display:block; font-weight:700; margin:12px 0 5px; }
     input, textarea, select {
-      width: 100%;
-      padding: 11px;
-      border: 1px solid #b8c3b4;
-      border-radius: 11px;
-      font: inherit;
-      font-size: 16px;
-      background: white;
+      width:100%; padding:11px; border:1px solid #b8c3b5; border-radius:10px;
+      font:inherit; font-size:16px;
     }
-
-    textarea {
-      min-height: 90px;
-      resize: vertical;
+    textarea { min-height:80px; }
+    .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    button {
+      border:0; border-radius:12px; padding:12px 14px; font-weight:800;
+      font-size:15px; cursor:pointer; background:white; border:1px solid var(--line);
     }
-
-    .grid-2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-    }
-
-    .hint {
-      color: var(--muted);
-      background: #f0f4ec;
-      border: 1px solid #dce5d6;
-      border-radius: 12px;
-      padding: 10px;
-      font-size: 13px;
-      line-height: 1.35;
-      margin: 8px 0 2px;
-    }
-
+    .primary { background:var(--green); color:white; border-color:var(--green); }
+    .danger { background:#9b2d2d; color:white; border-color:#9b2d2d; }
     .actions {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-top: 16px;
+      position:fixed; left:0; right:0; bottom:0; padding:10px;
+      padding-bottom:calc(10px + env(safe-area-inset-bottom));
+      background:rgba(245,241,232,.96); border-top:1px solid var(--line);
+      display:grid; grid-template-columns:1fr 1fr; gap:8px; z-index:9999;
     }
-
-    .full {
-      grid-column: 1 / -1;
+    .actions .primary { grid-column:1 / -1; }
+    .hint { font-size:13px; color:#5d6b5f; line-height:1.35; }
+    .status {
+      position:fixed; z-index:10000; top:70px; left:50%; transform:translateX(-50%);
+      background:white; border:1px solid var(--line); border-radius:999px;
+      padding:8px 12px; box-shadow:0 3px 12px rgba(0,0,0,.15); display:none;
+      max-width:92vw; text-align:center; font-size:13px;
     }
-
-    .danger {
-      background: var(--danger);
-      color: white;
-    }
-
-    .plain-danger {
-      color: var(--danger);
-      background: #fff3f3;
-      border: 1px solid #f1cdcd;
-    }
-
-    .leaflet-popup-content {
-      margin: 12px 14px;
-      min-width: 210px;
-    }
-
-    .popup h3 {
-      margin: 0 0 4px;
-      font-size: 17px;
-    }
-
-    .popup p {
-      margin: 4px 0;
-      line-height: 1.28;
-    }
-
-    .popup .meta {
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .popup button {
-      box-shadow: none;
-      border-radius: 10px;
-      padding: 8px 10px;
-      margin-top: 8px;
-      margin-right: 5px;
-      font-size: 13px;
-    }
-
-    .legend {
-      position: fixed;
-      z-index: 450;
-      right: 10px;
-      bottom: calc(92px + env(safe-area-inset-bottom));
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 8px 10px;
-      font-size: 12px;
-      box-shadow: 0 3px 12px rgba(0,0,0,.16);
-      max-width: 180px;
-    }
-
-    .hidden { display: none !important; }
-
-    .plant-icon {
-      width: 30px;
-      height: 30px;
-      border-radius: 50% 50% 50% 6px;
-      transform: rotate(-45deg);
-      border: 2px solid white;
-      box-shadow: 0 2px 8px rgba(0,0,0,.35);
-      background: #2d5a32;
-    }
-    .plant-icon span {
-      display: block;
-      transform: rotate(45deg);
-      font-size: 16px;
-      line-height: 26px;
-      text-align: center;
-    }
-    .icon-vermoedelijk { background: #c28a20; }
-    .icon-onbekend { background: #6b7280; }
-
-    @media (min-width: 820px) {
-      .top-panel {
-        left: 18px;
-        right: auto;
-        width: 420px;
-      }
-
-      .toolbar {
-        left: 18px;
-        right: auto;
-        width: 420px;
-      }
-
-      .panel {
-        left: auto;
-        width: 460px;
-        max-height: calc(100vh - 30px);
-        border-radius: 22px 0 0 22px;
-      }
-
-      .legend {
-        bottom: 18px;
-        right: 18px;
-      }
-    }
+    .plant-list button { margin-top:6px; margin-right:6px; padding:8px 10px; font-size:13px; }
+    .plant-item { border-top:1px solid var(--line); padding:10px 0; }
+    .plant-item:first-child { border-top:0; }
+    .muted { color:#637066; font-size:13px; }
   </style>
 </head>
-
 <body>
   <header>
     <div>
       <h1>Graefbos Plantenkaart</h1>
-      <div class="sub">Versie 2 — lokaal prototype</div>
+      <div class="sub">Lokale testversie — eerst testen, dan pas GitHub</div>
     </div>
-    <div class="count" id="count">0 planten</div>
+    <strong id="counter">0</strong>
   </header>
 
-  <div id="map" aria-label="Kaart van Graefbos"></div>
+  <div id="map"></div>
+  <div id="status" class="status"></div>
 
-  <div class="top-panel">
-    <div class="search-row">
-      <input id="search" type="search" placeholder="Zoek naam, Latijnse naam, kweker..." />
-      <button class="secondary small-btn" id="backupBtn">Backup</button>
-    </div>
-    <div id="status" class="status"></div>
-  </div>
+  <main>
+    <section class="card">
+      <strong>Testdoel</strong>
+      <p class="hint">
+        Deze versie is bewust eenvoudiger. We testen eerst of kaart, formulier en opslaan werken op je MacBook.
+        De gegevens worden lokaal in deze browser bewaard.
+      </p>
+      <p class="hint">
+        Klik op de kaart om de locatie te kiezen. Of gebruik “Midden kaart”. Daarna invullen en onderaan op “Opslaan” drukken.
+      </p>
+    </section>
 
-  <div class="legend">
-    <strong>Status</strong><br />
-    🌳 geïdentificeerd<br />
-    ❔ vermoedelijk<br />
-    • onbekend
-  </div>
-
-  <div class="toolbar">
-    <button class="secondary" id="locateBtn">📍 Mijn locatie</button>
-    <button class="primary" id="addBtn">＋ Boom/plant</button>
-  </div>
-
-  <section class="panel" id="plantPanel" aria-label="Plantformulier">
-    <div class="panel-header">
-      <h2 id="panelTitle">Plant toevoegen</h2>
-      <button class="close-btn" id="closePanel" type="button">Sluit</button>
-    </div>
-
-    <div class="panel-content">
-      <div class="hint" id="positionHint">
-        Tip: ga bij de boom staan en gebruik “Mijn locatie”. Je kunt de marker nadien verslepen om de positie te corrigeren.
-      </div>
-
+    <section class="card">
       <form id="plantForm">
-        <input type="hidden" id="plantId" />
+        <input type="hidden" id="editingId">
 
         <label for="name">Naam *</label>
-        <input id="name" required placeholder="Bijv. Appelboom Elstar" />
+        <input id="name" required placeholder="Bijv. Appelboom Elstar">
 
-        <label for="latinName">Latijnse naam</label>
-        <input id="latinName" placeholder="Bijv. Malus domestica" />
+        <label for="latin">Latijnse naam</label>
+        <input id="latin" placeholder="Bijv. Malus domestica">
 
-        <div class="grid-2">
+        <div class="row">
           <div>
-            <label for="plantYear">Aanplantjaar</label>
-            <input id="plantYear" type="number" min="1900" max="2100" placeholder="2023" />
+            <label for="year">Aanplantjaar</label>
+            <input id="year" type="number" min="1900" max="2100" placeholder="2023">
           </div>
-
           <div>
-            <label for="category">Categorie</label>
-            <select id="category">
-              <option value="boom">Boom</option>
-              <option value="struik">Struik</option>
-              <option value="kruid">Kruid</option>
-              <option value="klimplant">Klimplant</option>
-              <option value="zone">Zone</option>
-              <option value="onbekend">Onbekend</option>
+            <label for="statusField">Status</label>
+            <select id="statusField">
+              <option>Geïdentificeerd</option>
+              <option>Vermoedelijk</option>
+              <option>Onbekend</option>
             </select>
           </div>
         </div>
 
         <label for="nursery">Kweker</label>
-        <input id="nursery" placeholder="Bijv. kwekerij / leverancier" />
-
-        <label for="certainty">Identificatie</label>
-        <select id="certainty">
-          <option value="geïdentificeerd">Geïdentificeerd</option>
-          <option value="vermoedelijk">Vermoedelijk</option>
-          <option value="onbekend">Onbekend</option>
-        </select>
+        <input id="nursery" placeholder="Bijv. kwekerij / leverancier">
 
         <label for="notes">Notities</label>
-        <textarea id="notes" placeholder="Kenmerken, onzekerheden, onderhoud, observaties..."></textarea>
+        <textarea id="notes" placeholder="Kenmerken, onzekerheden, onderhoud..."></textarea>
 
-        <div class="hint">
-          Locatie: <span id="coordsText">nog niet gekozen</span><br />
-          GPS-nauwkeurigheid: <span id="accuracyText">onbekend</span>
-        </div>
-
-        <div class="actions">
-          <button class="secondary" type="button" id="useMapCenterBtn">Gebruik midden kaart</button>
-          <button class="secondary" type="button" id="useLocationBtn">Gebruik GPS</button>
-          <button class="primary full" type="submit" id="saveBtn">Opslaan</button>
-          <button class="plain-danger full hidden" type="button" id="deleteBtn">Verwijderen</button>
-        </div>
+        <p class="hint">
+          Gekozen locatie: <span id="coords">nog niet gekozen</span>
+        </p>
       </form>
-    </div>
-  </section>
+    </section>
 
-  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+    <section class="card plant-list">
+      <strong>Geregistreerde planten</strong>
+      <div id="plants"></div>
+    </section>
+  </main>
 
+  <div class="actions">
+    <button id="centerBtn" type="button">Gebruik midden kaart</button>
+    <button id="locateBtn" type="button">Mijn locatie</button>
+    <button id="saveBtn" class="primary" type="button">Opslaan</button>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    const STORAGE_KEY = "graefbos-plants-v2";
-    const VIEW_KEY = "graefbos-map-view-v2";
+    const STORE = "graefbos-local-test-v3";
+    let plants = JSON.parse(localStorage.getItem(STORE) || "[]");
+    let selected = null;
+    let tempMarker = null;
+    const markers = new Map();
 
-    let plants = loadPlants();
-    let markers = new Map();
-    let selectedPosition = null;
-    let selectedAccuracy = null;
-    let locationLayer = null;
-    let draftMarker = null;
-
-    const fallbackCenter = [51.117, 4.35]; // brede regio Antwerpen; exacte Graefbos-locatie bewaar je via GPS/kaart
-    const fallbackZoom = 17;
-
-    const savedView = JSON.parse(localStorage.getItem(VIEW_KEY) || "null");
-    const map = L.map("map", {
-      zoomControl: true,
-      preferCanvas: true
-    }).setView(savedView?.center || fallbackCenter, savedView?.zoom || 12);
-
-    const osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    const map = L.map("map").setView([51.15, 4.4], 12);
+    const streets = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 21,
-      attribution: "&copy; OpenStreetMap-bijdragers"
+      attribution: "&copy; OpenStreetMap"
     }).addTo(map);
-
-    const esri = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+    const satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
       maxZoom: 20,
-      attribution: "Beeldmateriaal: Esri en bronpartners"
+      attribution: "Esri"
+    });
+    L.control.layers({"Stratenkaart": streets, "Satelliet": satellite}).addTo(map);
+
+    function $(id){ return document.getElementById(id); }
+    function save(){ localStorage.setItem(STORE, JSON.stringify(plants)); render(); }
+    function status(msg){
+      $("status").textContent = msg; $("status").style.display = "block";
+      clearTimeout(status.t); status.t = setTimeout(() => $("status").style.display = "none", 2600);
+    }
+    function esc(s=""){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+    function choose(latlng, label="kaart") {
+      selected = { lat: latlng.lat, lng: latlng.lng };
+      $("coords").textContent = `${selected.lat.toFixed(6)}, ${selected.lng.toFixed(6)} (${label})`;
+      if (tempMarker) map.removeLayer(tempMarker);
+      tempMarker = L.marker(latlng, {draggable:true}).addTo(map);
+      tempMarker.bindPopup("Nieuwe/gekozen locatie").openPopup();
+      tempMarker.on("dragend", e => choose(e.target.getLatLng(), "marker verplaatst"));
+    }
+
+    map.on("click", e => {
+      choose(e.latlng, "kaartklik");
+      status("Locatie gekozen. Vul de plant in en druk onderaan op Opslaan.");
     });
 
-    const carto = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-      maxZoom: 21,
-      attribution: "&copy; OpenStreetMap &copy; CARTO"
-    });
+    $("centerBtn").onclick = () => {
+      choose(map.getCenter(), "midden kaart");
+      status("Midden van de kaart gekozen.");
+    };
 
-    L.control.layers({
-      "OpenStreetMap": osm,
-      "Satelliet": esri,
-      "Lichte kaart": carto
-    }, {}, { position: "topright" }).addTo(map);
-
-    map.on("moveend", () => {
-      const c = map.getCenter();
-      localStorage.setItem(VIEW_KEY, JSON.stringify({
-        center: [c.lat, c.lng],
-        zoom: map.getZoom()
-      }));
-    });
-
-    const el = id => document.getElementById(id);
-    const panel = el("plantPanel");
-    const form = el("plantForm");
-
-    function loadPlants() {
-      try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-      } catch {
-        return [];
-      }
-    }
-
-    function savePlants() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(plants));
-      updateCount();
-    }
-
-    function updateCount() {
-      const visible = [...markers.values()].filter(m => map.hasLayer(m)).length;
-      el("count").textContent = `${plants.length} ${plants.length === 1 ? "plant" : "planten"}`;
-    }
-
-    function showStatus(message, duration = 2800) {
-      const box = el("status");
-      box.textContent = message;
-      box.style.display = "block";
-      clearTimeout(showStatus._t);
-      showStatus._t = setTimeout(() => box.style.display = "none", duration);
-    }
-
-    function escapeHtml(value = "") {
-      return String(value).replace(/[&<>"']/g, char => ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#039;"
-      }[char]));
-    }
-
-    function iconFor(plant) {
-      const className = plant.certainty === "vermoedelijk" ? "icon-vermoedelijk"
-        : plant.certainty === "onbekend" ? "icon-onbekend"
-        : "";
-      const symbol = plant.certainty === "onbekend" ? "•"
-        : plant.certainty === "vermoedelijk" ? "?"
-        : "🌳";
-      return L.divIcon({
-        className: "",
-        html: `<div class="plant-icon ${className}"><span>${symbol}</span></div>`,
-        iconSize: [30, 30],
-        iconAnchor: [15, 29],
-        popupAnchor: [0, -28]
+    $("locateBtn").onclick = () => {
+      if (!navigator.geolocation) return status("Locatiebepaling wordt niet ondersteund.");
+      status("Locatie wordt bepaald...");
+      navigator.geolocation.getCurrentPosition(pos => {
+        const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
+        map.setView(latlng, 19);
+        choose(latlng, `GPS ±${Math.round(pos.coords.accuracy)} m`);
+      }, () => status("Locatie niet beschikbaar. Gebruik kaartklik of midden kaart."), {
+        enableHighAccuracy:true, timeout:12000, maximumAge:0
       });
-    }
+    };
 
-    function popupHtml(plant) {
-      return `
-        <div class="popup">
-          <h3>${escapeHtml(plant.name)}</h3>
-          ${plant.latinName ? `<p><em>${escapeHtml(plant.latinName)}</em></p>` : ""}
-          <p class="meta">${escapeHtml(plant.category || "plant")} · ${escapeHtml(plant.certainty || "geïdentificeerd")}</p>
-          ${plant.plantYear ? `<p><strong>Aanplantjaar:</strong> ${escapeHtml(plant.plantYear)}</p>` : ""}
-          ${plant.nursery ? `<p><strong>Kweker:</strong> ${escapeHtml(plant.nursery)}</p>` : ""}
-          ${plant.notes ? `<p>${escapeHtml(plant.notes)}</p>` : ""}
-          <p class="meta">Lat ${Number(plant.lat).toFixed(6)}, lng ${Number(plant.lng).toFixed(6)}</p>
-          <button class="primary" onclick="editPlant('${plant.id}')">Bewerk</button>
-          <button class="secondary" onclick="zoomToPlant('${plant.id}')">Zoom</button>
-        </div>
-      `;
-    }
+    $("saveBtn").onclick = () => {
+      const name = $("name").value.trim();
+      if (!name) { status("Vul eerst een naam in."); $("name").focus(); return; }
+      if (!selected) { choose(map.getCenter(), "automatisch midden kaart"); }
 
-    function renderPlant(plant) {
-      if (markers.has(plant.id)) {
-        map.removeLayer(markers.get(plant.id));
-        markers.delete(plant.id);
-      }
-
-      const marker = L.marker([plant.lat, plant.lng], {
-        draggable: true,
-        icon: iconFor(plant),
-        title: plant.name
-      }).addTo(map);
-
-      marker.bindPopup(popupHtml(plant));
-
-      marker.on("dragend", e => {
-        const pos = e.target.getLatLng();
-        const item = plants.find(p => p.id === plant.id);
-        if (item) {
-          item.lat = pos.lat;
-          item.lng = pos.lng;
-          item.updatedAt = new Date().toISOString();
-          item.positionSource = "handmatig verplaatst";
-          savePlants();
-          marker.bindPopup(popupHtml(item));
-          showStatus("Positie bijgewerkt.");
-        }
-      });
-
-      markers.set(plant.id, marker);
-    }
-
-    function renderAll() {
-      markers.forEach(marker => map.removeLayer(marker));
-      markers.clear();
-      plants.forEach(renderPlant);
-      updateCount();
-
-      if (plants.length > 0 && !localStorage.getItem(VIEW_KEY)) {
-        const group = L.featureGroup([...markers.values()]);
-        map.fitBounds(group.getBounds().pad(0.25), { maxZoom: 19 });
-      }
-    }
-
-    function setSelectedPosition(latlng, accuracy = null, source = "kaart") {
-      selectedPosition = L.latLng(latlng.lat, latlng.lng);
-      selectedAccuracy = accuracy;
-
-      el("coordsText").textContent = `${selectedPosition.lat.toFixed(6)}, ${selectedPosition.lng.toFixed(6)} (${source})`;
-      el("accuracyText").textContent = accuracy ? `±${Math.round(accuracy)} m` : "niet gemeten";
-
-      if (draftMarker) map.removeLayer(draftMarker);
-      draftMarker = L.marker(selectedPosition, {
-        draggable: true,
-        icon: L.divIcon({
-          className: "",
-          html: `<div class="plant-icon icon-vermoedelijk"><span>＋</span></div>`,
-          iconSize: [30, 30],
-          iconAnchor: [15, 29]
-        })
-      }).addTo(map);
-
-      draftMarker.on("dragend", e => {
-        const pos = e.target.getLatLng();
-        setSelectedPosition(pos, null, "marker verplaatst");
-      });
-    }
-
-    function clearDraftMarker() {
-      if (draftMarker) {
-        map.removeLayer(draftMarker);
-        draftMarker = null;
-      }
-    }
-
-    function locate({ forPlant = false } = {}) {
-      if (!navigator.geolocation) {
-        showStatus("Deze browser ondersteunt geen locatiebepaling.");
-        return;
-      }
-
-      showStatus("Locatie wordt bepaald...", 6000);
-
-      navigator.geolocation.getCurrentPosition(
-        position => {
-          const { latitude, longitude, accuracy } = position.coords;
-          const latlng = L.latLng(latitude, longitude);
-
-          map.setView(latlng, Math.max(map.getZoom(), 19));
-
-          if (locationLayer) map.removeLayer(locationLayer);
-          locationLayer = L.circle(latlng, {
-            radius: Math.max(accuracy, 2),
-            color: "#1f6feb",
-            weight: 2,
-            fillOpacity: 0.12
-          }).addTo(map);
-
-          if (forPlant) {
-            setSelectedPosition(latlng, accuracy, "GPS");
-          }
-
-          showStatus(`Locatie gevonden. Geschatte nauwkeurigheid: ±${Math.round(accuracy)} m.`);
-        },
-        error => {
-          console.warn(error);
-          showStatus("Locatie niet gevonden. Gebruik het midden van de kaart of tik op de kaart.", 5000);
-        },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-      );
-    }
-
-    function openPanel(mode = "add", plant = null) {
-      panel.classList.add("open");
-      el("panelTitle").textContent = mode === "edit" ? "Plant bewerken" : "Plant toevoegen";
-      el("deleteBtn").classList.toggle("hidden", mode !== "edit");
-
-      if (mode === "edit" && plant) {
-        el("plantId").value = plant.id;
-        el("name").value = plant.name || "";
-        el("latinName").value = plant.latinName || "";
-        el("plantYear").value = plant.plantYear || "";
-        el("nursery").value = plant.nursery || "";
-        el("category").value = plant.category || "boom";
-        el("certainty").value = plant.certainty || "geïdentificeerd";
-        el("notes").value = plant.notes || "";
-        setSelectedPosition(L.latLng(plant.lat, plant.lng), plant.accuracy || null, "bestaande positie");
-      } else {
-        form.reset();
-        el("plantId").value = "";
-        el("category").value = "boom";
-        el("certainty").value = "geïdentificeerd";
-        const center = map.getCenter();
-        if (!selectedPosition) setSelectedPosition(center, null, "midden kaart");
-      }
-
-      setTimeout(() => el("name").focus(), 150);
-    }
-
-    function closePanel() {
-      panel.classList.remove("open");
-      form.reset();
-      el("plantId").value = "";
-      selectedPosition = null;
-      selectedAccuracy = null;
-      el("coordsText").textContent = "nog niet gekozen";
-      el("accuracyText").textContent = "onbekend";
-      clearDraftMarker();
-    }
-
-    function collectForm() {
-      const name = el("name").value.trim();
-
-      if (!name) {
-        showStatus("Naam is verplicht.");
-        el("name").focus();
-        return null;
-      }
-
-      if (!selectedPosition) {
-        showStatus("Kies eerst een locatie voor deze plant.");
-        return null;
-      }
-
-      return {
+      const data = {
         name,
-        latinName: el("latinName").value.trim(),
-        plantYear: el("plantYear").value,
-        nursery: el("nursery").value.trim(),
-        category: el("category").value,
-        certainty: el("certainty").value,
-        notes: el("notes").value.trim(),
-        lat: selectedPosition.lat,
-        lng: selectedPosition.lng,
-        accuracy: selectedAccuracy,
+        latin: $("latin").value.trim(),
+        year: $("year").value.trim(),
+        nursery: $("nursery").value.trim(),
+        notes: $("notes").value.trim(),
+        status: $("statusField").value,
+        lat: selected.lat,
+        lng: selected.lng,
+        updatedAt: new Date().toISOString()
       };
-    }
 
-    form.addEventListener("submit", event => {
-      event.preventDefault();
-      const data = collectForm();
-      if (!data) return;
-
-      const id = el("plantId").value;
-
-      if (id) {
-        const index = plants.findIndex(p => p.id === id);
-        if (index >= 0) {
-          plants[index] = {
-            ...plants[index],
-            ...data,
-            updatedAt: new Date().toISOString()
-          };
-          savePlants();
-          renderPlant(plants[index]);
-          map.setView([plants[index].lat, plants[index].lng], Math.max(map.getZoom(), 19));
-          markers.get(id).openPopup();
-          showStatus("Plant bijgewerkt.");
-        }
+      const editingId = $("editingId").value;
+      if (editingId) {
+        const i = plants.findIndex(p => p.id === editingId);
+        if (i >= 0) plants[i] = { ...plants[i], ...data };
+        status("Plant bijgewerkt.");
       } else {
-        const plant = {
-          id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
-          ...data,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-        plants.push(plant);
-        savePlants();
-        renderPlant(plant);
-        map.setView([plant.lat, plant.lng], Math.max(map.getZoom(), 19));
-        markers.get(plant.id).openPopup();
-        showStatus("Plant opgeslagen op dit toestel.");
+        plants.push({ id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), ...data, createdAt: new Date().toISOString() });
+        status("Plant opgeslagen.");
       }
 
-      closePanel();
-    });
+      $("plantForm").reset();
+      $("editingId").value = "";
+      selected = null;
+      $("coords").textContent = "nog niet gekozen";
+      if (tempMarker) { map.removeLayer(tempMarker); tempMarker = null; }
+      save();
+    };
 
-    el("deleteBtn").addEventListener("click", () => {
-      const id = el("plantId").value;
-      const plant = plants.find(p => p.id === id);
-      if (!plant) return;
+    window.editPlant = id => {
+      const p = plants.find(x => x.id === id);
+      if (!p) return;
+      $("editingId").value = p.id;
+      $("name").value = p.name || "";
+      $("latin").value = p.latin || "";
+      $("year").value = p.year || "";
+      $("nursery").value = p.nursery || "";
+      $("notes").value = p.notes || "";
+      $("statusField").value = p.status || "Geïdentificeerd";
+      choose(L.latLng(p.lat, p.lng), "bestaande locatie");
+      map.setView([p.lat, p.lng], 19);
+      status("Plant geladen om te bewerken.");
+      window.scrollTo({top: 0, behavior: "smooth"});
+    };
 
-      if (!confirm(`"${plant.name}" verwijderen?`)) return;
+    window.deletePlant = id => {
+      const p = plants.find(x => x.id === id);
+      if (!p) return;
+      if (!confirm(`"${p.name}" verwijderen?`)) return;
+      plants = plants.filter(x => x.id !== id);
+      save();
+      status("Plant verwijderd.");
+    };
 
-      if (markers.has(id)) {
-        map.removeLayer(markers.get(id));
-        markers.delete(id);
-      }
-
-      plants = plants.filter(p => p.id !== id);
-      savePlants();
-      closePanel();
-      showStatus("Plant verwijderd.");
-    });
-
-    el("addBtn").addEventListener("click", () => {
-      selectedPosition = null;
-      locate({ forPlant: true });
-      openPanel("add");
-    });
-
-    el("locateBtn").addEventListener("click", () => locate({ forPlant: false }));
-
-    el("useLocationBtn").addEventListener("click", () => locate({ forPlant: true }));
-
-    el("useMapCenterBtn").addEventListener("click", () => {
-      setSelectedPosition(map.getCenter(), null, "midden kaart");
-      showStatus("Midden van de kaart gekozen.");
-    });
-
-    el("closePanel").addEventListener("click", closePanel);
-
-    map.on("click", event => {
-      if (panel.classList.contains("open")) {
-        setSelectedPosition(event.latlng, null, "kaartklik");
-        showStatus("Locatie gekozen via kaartklik.");
-      }
-    });
-
-    el("search").addEventListener("input", event => {
-      const q = event.target.value.trim().toLowerCase();
-
-      markers.forEach((marker, id) => {
-        const plant = plants.find(p => p.id === id);
-        const text = [
-          plant?.name,
-          plant?.latinName,
-          plant?.nursery,
-          plant?.category,
-          plant?.certainty,
-          plant?.notes
-        ].join(" ").toLowerCase();
-
-        if (!q || text.includes(q)) {
-          if (!map.hasLayer(marker)) marker.addTo(map);
-        } else {
-          if (map.hasLayer(marker)) map.removeLayer(marker);
-        }
+    function render() {
+      markers.forEach(m => map.removeLayer(m));
+      markers.clear();
+      plants.forEach(p => {
+        const marker = L.marker([p.lat, p.lng]).addTo(map);
+        marker.bindPopup(`<strong>${esc(p.name)}</strong><br>${esc(p.latin || "")}<br><button onclick="editPlant('${p.id}')">Bewerk</button>`);
+        markers.set(p.id, marker);
       });
-
-      updateCount();
-    });
-
-    el("backupBtn").addEventListener("click", () => {
-      const payload = {
-        app: "Graefbos Plantenkaart",
-        version: 2,
-        exportedAt: new Date().toISOString(),
-        plants
-      };
-
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      const date = new Date().toISOString().slice(0,10);
-      a.href = url;
-      a.download = `graefbos-backup-${date}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      showStatus("Backup gedownload.");
-    });
-
-    window.editPlant = function(id) {
-      const plant = plants.find(p => p.id === id);
-      if (!plant) return;
-      openPanel("edit", plant);
-    };
-
-    window.zoomToPlant = function(id) {
-      const plant = plants.find(p => p.id === id);
-      if (!plant) return;
-      map.setView([plant.lat, plant.lng], 20);
-      markers.get(id)?.openPopup();
-    };
-
-    renderAll();
-
-    // Eerste keer: vraag niet automatisch locatie op. Dat voelt op iPhone minder agressief.
-    if (plants.length === 0) {
-      showStatus("Gebruik 📍 Mijn locatie of zoom naar Graefbos en voeg je eerste boom toe.", 5200);
+      $("counter").textContent = `${plants.length} ${plants.length === 1 ? "plant" : "planten"}`;
+      $("plants").innerHTML = plants.length ? plants.map(p => `
+        <div class="plant-item">
+          <strong>${esc(p.name)}</strong><br>
+          <span class="muted">${esc(p.latin || "geen Latijnse naam")} · ${esc(p.status || "")}</span><br>
+          ${p.year ? `<span class="muted">Aanplantjaar: ${esc(p.year)}</span><br>` : ""}
+          <button onclick="editPlant('${p.id}')">Bewerk</button>
+          <button onclick="deletePlant('${p.id}')">Verwijder</button>
+        </div>
+      `).join("") : `<p class="hint">Nog geen planten geregistreerd.</p>`;
     }
+
+    render();
   </script>
 </body>
 </html>
